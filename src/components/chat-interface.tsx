@@ -4,17 +4,10 @@ import { useChat } from "@ai-sdk/react";
 import { isTextUIPart, UIMessage, DefaultChatTransport } from "ai";
 import { useCallback, useEffect, useRef, useState, memo } from "react";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import {
   Send,
   Square,
-  RotateCcw,
-  Zap,
   ChevronDown,
-  Trophy,
-  DollarSign,
-  Hammer,
   AlertCircle,
   RefreshCw,
 } from "lucide-react";
@@ -30,17 +23,21 @@ const SUGGESTED_QUESTIONS = [
   "How do I build a strong database farm?",
 ];
 
-export function ChatInterface() {
-  const { messages, sendMessage, status, setMessages, stop, error, clearError, regenerate } =
-    useChat({
-      transport: new DefaultChatTransport({ api: "/api/chat" }),
-    });
+type ChatInterfaceProps = {
+  onConversationTitleChange?: (title: string) => void;
+};
+
+export function ChatInterface({ onConversationTitleChange }: ChatInterfaceProps) {
+  const { messages, sendMessage, status, stop, error, clearError, regenerate } = useChat({
+    transport: new DefaultChatTransport({ api: "/api/chat" }),
+  });
 
   const [input, setInput] = useState("");
   const [isAtBottom, setIsAtBottom] = useState(true);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const hasSetConversationTitleRef = useRef(false);
 
   const isLoading = status === "submitted" || status === "streaming";
   const isStreaming = status === "streaming";
@@ -72,16 +69,27 @@ export function ChatInterface() {
     setIsAtBottom(true);
   }, []);
 
+  const setConversationTitleFromPrompt = useCallback(
+    (prompt: string) => {
+      if (hasSetConversationTitleRef.current) return;
+      const cleanTitle = prompt.trim().replace(/\s+/g, " ").slice(0, 42);
+      onConversationTitleChange?.(cleanTitle || "New chat");
+      hasSetConversationTitleRef.current = true;
+    },
+    [onConversationTitleChange]
+  );
+
   const handleSubmit = useCallback(
     (e?: React.FormEvent) => {
       e?.preventDefault();
       if (!input.trim() || isLoading) return;
       if (error) clearError();
+      setConversationTitleFromPrompt(input.trim());
       sendMessage({ text: input.trim() });
       setInput("");
       setIsAtBottom(true);
     },
-    [input, isLoading, sendMessage, error, clearError]
+    [input, isLoading, sendMessage, error, clearError, setConversationTitleFromPrompt]
   );
 
   const handleKeyDown = useCallback(
@@ -98,17 +106,12 @@ export function ChatInterface() {
     (question: string) => {
       if (isLoading) return;
       if (error) clearError();
+      setConversationTitleFromPrompt(question);
       sendMessage({ text: question });
       setIsAtBottom(true);
     },
-    [isLoading, sendMessage, error, clearError]
+    [isLoading, sendMessage, error, clearError, setConversationTitleFromPrompt]
   );
-
-  const handleReset = useCallback(() => {
-    setMessages([]);
-    setInput("");
-    if (error) clearError();
-  }, [setMessages, error, clearError]);
 
   const handleRetry = useCallback(() => {
     clearError();
@@ -116,15 +119,15 @@ export function ChatInterface() {
   }, [clearError, regenerate]);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full flex-col">
       {/* Messages Area */}
       <div className="relative flex-1 overflow-hidden">
         <div
           ref={scrollContainerRef}
-          className="h-full overflow-y-auto px-4 py-6"
+          className="h-full overflow-y-auto px-4 py-7 md:px-6"
           onScroll={handleScroll}
         >
-          <div className="max-w-3xl mx-auto space-y-6">
+          <div className="mx-auto max-w-3xl space-y-8">
             {messages.length === 0 ? (
               <WelcomeScreen onSuggestedQuestion={handleSuggestedQuestion} />
             ) : (
@@ -154,7 +157,7 @@ export function ChatInterface() {
         {!isAtBottom && (
           <button
             onClick={scrollToBottom}
-            className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-background border border-border shadow-md text-xs text-muted-foreground hover:text-foreground hover:border-primary transition-all duration-150 animate-message-in"
+            className="absolute bottom-5 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-border bg-popover/95 px-3 py-1.5 text-xs text-muted-foreground shadow-md backdrop-blur-sm transition-all duration-150 hover:text-foreground md:bottom-7 animate-message-in"
           >
             <ChevronDown className="w-3.5 h-3.5" />
             Scroll to bottom
@@ -163,16 +166,16 @@ export function ChatInterface() {
       </div>
 
       {/* Input Area */}
-      <div className="border-t border-border bg-background/95 backdrop-blur-sm px-4 py-4">
-        <div className="max-w-3xl mx-auto">
+      <div className="border-t border-border/80 bg-background px-4 pb-4 pt-3 md:px-6">
+        <div className="mx-auto max-w-3xl">
           {messages.length > 0 && (
-            <div className="flex items-center gap-2 mb-3 flex-wrap">
-              <span className="text-xs text-muted-foreground">Quick:</span>
+            <div className="mb-2.5 flex flex-wrap items-center gap-2">
+              <span className="text-xs text-muted-foreground/90">Suggestions:</span>
               {SUGGESTED_QUESTIONS.slice(0, 3).map((q) => (
                 <button
                   key={q}
                   onClick={() => handleSuggestedQuestion(q)}
-                  className="text-xs px-3 py-1 rounded-full border border-border hover:border-primary hover:text-primary transition-colors bg-background text-muted-foreground disabled:opacity-40"
+                  className="rounded-full border border-border bg-card/60 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-card hover:text-foreground disabled:opacity-40"
                   disabled={isLoading}
                 >
                   {q}
@@ -181,59 +184,49 @@ export function ChatInterface() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="flex gap-2 items-end">
-            {messages.length > 0 && (
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={handleReset}
-                className="shrink-0 mb-0.5"
-                title="New conversation"
-              >
-                <RotateCcw className="h-4 w-4" />
-              </Button>
-            )}
+          <form onSubmit={handleSubmit} className="relative">
+            <div className="relative rounded-[28px] border border-input bg-card">
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Message Tom Panos AI"
+                rows={1}
+                className="min-h-[56px] w-full resize-none bg-transparent px-5 py-3 pr-16 text-[15px] leading-6 placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={isLoading}
+                autoFocus
+              />
 
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Ask Tom anything about real estate…"
-              rows={1}
-              className="flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 min-h-[38px] max-h-[140px] leading-relaxed"
-              disabled={isLoading}
-              autoFocus
-            />
-
-            {isLoading ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={() => stop()}
-                className="shrink-0 mb-0.5 border-destructive/40 hover:border-destructive hover:text-destructive transition-colors"
-                title="Stop generation"
-              >
-                <Square className="h-3.5 w-3.5 fill-current" />
-              </Button>
-            ) : (
-              <Button
-                type="submit"
-                disabled={!input.trim()}
-                className="shrink-0 mb-0.5"
-                title="Send (Enter)"
-              >
-                <Send className="h-4 w-4" />
-              </Button>
-            )}
+              {isLoading ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => stop()}
+                  className="absolute bottom-3 right-3 h-8 w-8 rounded-full border border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  title="Stop generation"
+                >
+                  <Square className="h-3.5 w-3.5 fill-current" />
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  size="icon"
+                  disabled={!input.trim()}
+                  className="absolute bottom-3 right-3 h-8 w-8 rounded-full bg-primary text-primary-foreground hover:opacity-90"
+                  title="Send (Enter)"
+                >
+                  <Send className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </div>
           </form>
 
-          <p className="text-center text-xs text-muted-foreground mt-2">
+          <p className="mt-2.5 text-center text-xs text-muted-foreground">
             Enter to send · Shift+Enter for new line · 613 transcripts indexed
           </p>
-          <p className="text-center text-xs text-muted-foreground/50 mt-1">
+          <p className="mt-1 text-center text-xs text-muted-foreground/60">
             Not affiliated with or endorsed by Tom Panos. AI responses are based on publicly available teachings.
           </p>
         </div>
@@ -251,72 +244,28 @@ const WelcomeScreen = memo(function WelcomeScreen({
 }: {
   onSuggestedQuestion: (q: string) => void;
 }) {
-  const badges = [
-    { icon: Trophy, label: "Real Estate Gym" },
-    { icon: Zap, label: "Attraction Agent" },
-    { icon: DollarSign, label: "Million Dollar Agent" },
-    { icon: Hammer, label: "Auction Specialist" },
-  ];
-
   return (
-    <div className="text-center py-8 space-y-8">
-      {/* Hero */}
-      <div className="space-y-3 animate-message-in">
-        <div className="flex justify-center">
-          <div className="relative">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-3xl font-bold text-white shadow-lg">
-              TP
-            </div>
-            <div className="absolute -bottom-1 -right-1 w-7 h-7 bg-green-500 rounded-full flex items-center justify-center shadow-sm">
-              <Zap className="w-4 h-4 text-white" />
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Tom Panos AI</h2>
-          <p className="text-muted-foreground mt-1 max-w-md mx-auto">
-            An unofficial AI trained on Tom Panos&apos; public teachings. Ask anything about
-            listings, prospecting, auctions, mindset, or building your real estate career.
-          </p>
-          <p className="text-xs text-muted-foreground/60 mt-1">
-            Not affiliated with or endorsed by Tom Panos.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-2 justify-center">
-          {badges.map(({ icon: Icon, label }) => (
-            <Badge key={label} variant="secondary" className="gap-1.5 px-2.5 py-1">
-              <Icon className="w-3 h-3" />
-              {label}
-            </Badge>
-          ))}
-        </div>
+    <div className="space-y-7 py-16 text-center">
+      <div className="space-y-2.5 animate-message-in">
+        <h2 className="text-[31px] font-semibold tracking-tight">What do you want to work on?</h2>
+        <p className="mx-auto max-w-xl text-[15px] leading-6 text-muted-foreground">
+          An unofficial AI trained on Tom Panos&apos; public teachings for listings, prospecting,
+          auctions, mindset, and growth.
+        </p>
       </div>
 
       {/* Suggested questions */}
-      <div className="space-y-3">
-        <p
-          className="text-sm font-medium text-muted-foreground uppercase tracking-wide animate-message-in"
-          style={{ animationDelay: "80ms" }}
-        >
-          What do you want to work on?
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-2xl mx-auto">
-          {SUGGESTED_QUESTIONS.map((question, i) => (
-            <button
-              key={question}
-              onClick={() => onSuggestedQuestion(question)}
-              className="animate-message-in text-left px-4 py-3 rounded-xl border border-border hover:border-primary hover:bg-primary/5 hover:-translate-y-px hover:shadow-sm active:translate-y-0 active:shadow-none transition-all duration-150 text-sm font-medium group"
-              style={{ animationDelay: `${120 + i * 50}ms` }}
-            >
-              <span className="text-primary group-hover:translate-x-0.5 inline-block transition-transform duration-150">
-                →
-              </span>{" "}
-              {question}
-            </button>
-          ))}
-        </div>
+      <div className="mx-auto grid max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2">
+        {SUGGESTED_QUESTIONS.map((question, i) => (
+          <button
+            key={question}
+            onClick={() => onSuggestedQuestion(question)}
+            className="animate-message-in rounded-2xl border border-border bg-card/70 px-4 py-3 text-left text-sm leading-6 text-foreground/90 transition-colors hover:bg-card"
+            style={{ animationDelay: `${100 + i * 40}ms` }}
+          >
+            {question}
+          </button>
+        ))}
       </div>
     </div>
   );
@@ -338,40 +287,28 @@ const MessageBubble = memo(function MessageBubble({
 
   if (!textContent) return null;
 
-  return (
-    <div className={cn("flex gap-3 animate-message-in", isUser ? "flex-row-reverse" : "flex-row")}>
-      <Avatar className="w-8 h-8 shrink-0 mt-1">
-        {isUser ? (
-          <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
-            YOU
-          </AvatarFallback>
-        ) : (
-          <AvatarFallback className="bg-gradient-to-br from-orange-500 to-red-600 text-white text-xs font-bold">
-            TP
-          </AvatarFallback>
-        )}
-      </Avatar>
+  if (isUser) {
+    return (
+      <div className="flex justify-end animate-message-in">
+        <div className="max-w-[78%] rounded-[26px] bg-muted px-4 py-2.5 text-[15px] leading-7 text-foreground">
+          <p className="whitespace-pre-wrap">{textContent}</p>
+        </div>
+      </div>
+    );
+  }
 
+  return (
+    <div className="flex items-start gap-3 animate-message-in">
+      <div className="mt-1 h-6 w-6 rounded-full bg-gradient-to-br from-orange-500 to-red-600 text-[10px] font-semibold text-white grid place-items-center">
+        TP
+      </div>
       <div
         className={cn(
-          "max-w-[80%] rounded-2xl px-4 py-3 text-sm",
-          isUser
-            ? "bg-primary text-primary-foreground rounded-tr-sm"
-            : "bg-muted rounded-tl-sm"
+          "min-w-0 max-w-none flex-1 prose prose-sm dark:prose-invert prose-p:my-2 prose-p:leading-7 prose-headings:my-3 prose-headings:font-semibold prose-ul:my-2 prose-li:my-0.5 prose-strong:text-foreground",
+          isStreaming && "streaming-cursor"
         )}
       >
-        {isUser ? (
-          <p className="whitespace-pre-wrap">{textContent}</p>
-        ) : (
-          <div
-            className={cn(
-              "prose prose-sm max-w-none dark:prose-invert prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-li:my-0.5",
-              isStreaming && "streaming-cursor"
-            )}
-          >
-            <ReactMarkdown>{textContent}</ReactMarkdown>
-          </div>
-        )}
+        <ReactMarkdown>{textContent}</ReactMarkdown>
       </div>
     </div>
   );
@@ -379,18 +316,14 @@ const MessageBubble = memo(function MessageBubble({
 
 function TypingIndicator() {
   return (
-    <div className="flex gap-3 animate-message-in">
-      <Avatar className="w-8 h-8 shrink-0">
-        <AvatarFallback className="bg-gradient-to-br from-orange-500 to-red-600 text-white text-xs font-bold">
-          TP
-        </AvatarFallback>
-      </Avatar>
-      <div className="bg-muted rounded-2xl rounded-tl-sm px-4 py-3">
-        <div className="flex gap-1 items-center h-4">
-          <div className="w-1.5 h-1.5 bg-muted-foreground/50 rounded-full animate-bounce [animation-delay:0ms]" />
-          <div className="w-1.5 h-1.5 bg-muted-foreground/50 rounded-full animate-bounce [animation-delay:150ms]" />
-          <div className="w-1.5 h-1.5 bg-muted-foreground/50 rounded-full animate-bounce [animation-delay:300ms]" />
-        </div>
+    <div className="flex items-center gap-3 animate-message-in">
+      <div className="h-6 w-6 rounded-full bg-gradient-to-br from-orange-500 to-red-600 text-[10px] font-semibold text-white grid place-items-center">
+        TP
+      </div>
+      <div className="flex h-6 items-center gap-1">
+        <div className="w-1.5 h-1.5 bg-muted-foreground/50 rounded-full animate-bounce [animation-delay:0ms]" />
+        <div className="w-1.5 h-1.5 bg-muted-foreground/50 rounded-full animate-bounce [animation-delay:150ms]" />
+        <div className="w-1.5 h-1.5 bg-muted-foreground/50 rounded-full animate-bounce [animation-delay:300ms]" />
       </div>
     </div>
   );
@@ -398,11 +331,11 @@ function TypingIndicator() {
 
 function ErrorMessage({ onRetry }: { onRetry: () => void }) {
   return (
-    <div className="flex gap-3 animate-message-in">
-      <div className="w-8 h-8 shrink-0 mt-1 flex items-center justify-center">
+    <div className="flex gap-3 animate-message-in items-start">
+      <div className="w-6 h-6 shrink-0 mt-1 flex items-center justify-center">
         <AlertCircle className="w-5 h-5 text-destructive" />
       </div>
-      <div className="bg-destructive/10 border border-destructive/20 rounded-2xl rounded-tl-sm px-4 py-3 text-sm flex items-center gap-3">
+      <div className="flex items-center gap-3 rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm">
         <span className="text-destructive/80">Something went wrong. Please try again.</span>
         <button
           onClick={onRetry}
