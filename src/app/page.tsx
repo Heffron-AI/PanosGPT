@@ -5,7 +5,7 @@ import { Dumbbell } from "lucide-react";
 
 export default function Home() {
   return (
-    <div className="flex flex-col h-screen bg-background">
+    <div className="flex flex-col h-[100dvh] bg-background">
       {/* Header */}
       <header className="shrink-0 border-b border-border bg-background/95 backdrop-blur-sm z-10">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -18,7 +18,7 @@ export default function Home() {
                 Tom Panos GPT
               </h1>
               <p className="text-xs text-muted-foreground leading-tight">
-                Real Estate Gym · AI Knowledge Base
+                Unofficial AI · Based on Tom Panos&apos; public teachings
               </p>
             </div>
           </div>
